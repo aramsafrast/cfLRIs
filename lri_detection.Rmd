@@ -1,0 +1,273 @@
+---
+title: "Generation of LRIs; Fig1, Suppl. Fig1 & Suppl. File1"
+author: "Aram Safrastyan"
+date: "`r Sys.Date()`"
+output:
+  html_document: 
+    toc: TRUE
+    code_folding: hide
+    number_sections: TRUE
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<style type="text/css">
+.main-container {
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+# load libraries
+***
+
+```{r, pkgs, message=F, warning=F}
+library(SingleR)
+library(Seurat)
+library(liana)
+library(tidyverse)
+library(data.table)
+library(scran)
+library(BulkSignalR)
+library(tidyverse)
+library(pheatmap)
+library(UpSetR)
+library(ggvenn)
+library(scales)
+library(circlize)
+library(openxlsx)
+library(cowplot)
+library(viridis)
+library(ggpubr)
+```
+
+# LRIs in cell-free transcriptome
+***
+
+```{r, cfLRIs, fig.width= 15, fig.height=8, warning = T, message = T, error=TRUE, eval = T}
+#Chen et al., 2022 aka elife dataset LRIs
+load("./input/elife_input.RData")
+n.proc <- 30
+cl <- makeCluster(n.proc)
+registerDoParallel(cl)
+for (i in unique(elife_meta_all$cond)){
+  elife_samples <- elife_meta_all %>% dplyr::filter(cond == i) %>% dplyr::pull(samples)
+  elife_df <- elife_batch_all %>% as.data.frame() %>% dplyr::select(elife_samples)
+  bsrdm <- prepareDataset(counts = elife_df)
+  bsrdm <- learnParameters(bsrdm)
+  bsrinf <- initialInference(bsrdm)
+  save(bsrdm, bsrinf, file = paste0("./data/", i, ".RData"))
+}
+
+#Zhu et al., 2021 aka therano dataset LRIs
+load("./input/therano_input.RData")
+therano_hcc <- therano_countm[, 1:35]
+bsrdm <- prepareDataset(counts = therano_hcc)
+bsrdm_therano_hcc <- learnParameters(bsrdm)
+bsrinf_therano_hcc <- initialInference(bsrdm_therano_hcc)
+therano_nc <- therano_countm[, 36:65]
+bsrdm <- prepareDataset(counts = therano_nc)
+bsrdm_therano_nc <- learnParameters(bsrdm)
+bsrinf_therano_nc <- initialInference(bsrdm_therano_nc)
+save(bsrdm_therano, bsrinf_therano, bsrdm_therano_hcc, bsrinf_therano_hcc, bsrdm_therano_nc, bsrinf_therano_nc, file="./data/therano_lrp.RData")
+```
+
+#  Download the data (scRNA-seq)
+***
+
+```{bash scdownload, message=F, warning=F}
+#download the reference scRNA-seq count matrix
+wget -q -O - https://ftp.ncbi.nlm.nih.gov/geo/series/GSE115nnn/GSE115469/suppl/GSE115469_Data.csv.gz | gunzip -c > ./input/GSE115469_Data.csv
+#download the reference metadata
+wget -q -O - https://ftp.ncbi.nlm.nih.gov/geo/series/GSE115nnn/GSE115469/suppl/GSE115469_CellClusterType.txt.gz | gunzip -c > ./input/GSE115469_CellClusterType.txt
+
+#download the liver cancer scRNA-seq count matrix
+wget -q -O - https://ftp.ncbi.nlm.nih.gov/geo/series/GSE149nnn/GSE149614/suppl/GSE149614_HCC.scRNAseq.S71915.count.txt.gz | gunzip -c > ./input/GSE149614_HCC.scRNAseq.S71915.count.txt
+#download the liver cancer scRNA-seq metadata
+wget -q -O - https://ftp.ncbi.nlm.nih.gov/geo/series/GSE149nnn/GSE149614/suppl/GSE149614_HCC.metadata.txt.gz | gunzip -c > ./input/GSE149614_HCC.metadata.txt
+```
+
+# LRIs in scRNA-seq dataset
+***
+
+```{r, scLRIs, fig.width= 15, fig.height=8, warning = T, message = T, error=TRUE, eval = T}
+#select tumor samples with HBV 
+hcc_metadata <- read.delim("./input/GSE149614_HCC.metadata.txt")
+hcc_hbv <- hcc_metadata %>% dplyr::filter(site == "Tumor" & virus == "HBV")
+hcc_sc <- fread("./input/GSE149614_HCC.scRNAseq.S71915.count.txt")
+hcc_sc_hbv <- hcc_sc %>% dplyr::select(V1, hcc_hbv$Cell)
+#annotation
+hcc_sc_hbv <- hcc_sc_hbv %>% column_to_rownames(var="V1")
+hcc_sc_hbv <- as.matrix(hcc_sc_hbv)
+ref_annot <- read.delim("./input/GSE115469_CellClusterType.txt")
+ref_countm <- read.csv("./input/GSE115469_Data.csv")
+ref_annot$CellType <- ifelse(grepl("Hepatocyte", ref_annot$CellType), "Hepatocyte", ref_annot$CellType)
+ref_annot$CellType <- ifelse(grepl("T_Cells", ref_annot$CellType), "T_Cells", ref_annot$CellType)
+ref_annot$CellType <- ifelse(grepl("LSECs", ref_annot$CellType), "LSECs", ref_annot$CellType)
+ref_annot$CellType <- ifelse(grepl("Macrophage", ref_annot$CellType), "Macrophage", ref_annot$CellType)
+ref_countm <- ref_countm %>% column_to_rownames(., var = "X") %>% as.matrix()
+hcc_hbv_annot <- SingleR(test=hcc_sc_hbv, ref=ref_countm, labels=ref_annot$CellType, de.method="wilcox")
+
+seurat_object <- CreateSeuratObject(counts = hcc_sc_hbv)
+seurat_object <- AddMetaData(seurat_object, hcc_hbv$sample, col.name = "sample")
+seurat_object <- AddMetaData(seurat_object, hcc_hbv$stage, col.name = "stage")
+seurat_object <- AddMetaData(seurat_object, hcc_hbv_annot$labels, col.name = "celltype")
+seurat_object <- SetIdent(seurat_object, value = "celltype")
+seurat_object <- NormalizeData(seurat_object)
+liana_raw <- liana_wrap(seurat_object, resource = c("LRdb"))
+liana_raw <- liana_raw %>%
+  liana_aggregate()
+liana_raw <- liana_raw %>% dplyr::mutate(lr = paste0(ligand.complex, "_", receptor.complex))
+save(liana_raw, file = "./data/hbv_liana_lrdb.RData")
+```
+
+#  Download the data (bulk RNA-seq)
+***
+
+```{bash bulk_download, message=F, warning=F}
+#download the count matrix
+wget -q -O - https://ftp.ncbi.nlm.nih.gov/geo/series/GSE124nnn/GSE124535/suppl/GSE124535_HCC.RNA-seq.35.samples.fpkm.txt.gz | gunzip -c > ./input/GSE124535_HCC.RNA-seq.35.samples.fpkm.txt
+```
+
+# LRIs in bulk RNA-seq dataset
+***
+
+```{r, scLRIs, fig.width= 15, fig.height=8, warning = T, message = T, error=TRUE, eval = T}
+liver_gse <- read.delim("./input/GSE124535_HCC.RNA-seq.35.samples.fpkm.txt")
+liver_gse <- liver_gse %>% dplyr::select(-c(1, 3:4))
+liver_gse_filt <- liver_gse[rowMeans(liver_gse[, -1])>0, ]
+liver_gse_filt <- liver_gse_filt %>% distinct(gene_symbol, .keep_all=TRUE) %>% column_to_rownames(var="gene_symbol")
+n.proc <- 30
+cl <- makeCluster(n.proc)
+registerDoParallel(cl)
+liver_gse_hcc <- liver_gse_filt %>% dplyr::select(36:70)
+bsrdm_hcc <- prepareDataset(counts = liver_gse_hcc, normalize=FALSE, method="TC")
+bsrdm_hcc <- learnParameters(bsrdm_hcc)
+bsrinf_hcc <- initialInference(bsrdm_hcc)
+save(bsrdm_hcc, bsrinf_hcc, file="./data/gse_liver_res.RData")
+```
+
+# Main Figure 1
+***
+
+```{r, fig1, fig.width= 15, fig.height=8, warning = T, message = T, error=TRUE, eval = T}
+#load Chen et al., 2022/elife LRIs
+load("./data/ESCA.RData")
+esca_LR <- LRinter(bsrinf) %>%
+  dplyr::mutate(lr = paste0(L, "_", R)) %>%
+  dplyr::filter(qval < 0.001)
+load("./data/HD.RData")
+hd_LR <- LRinter(bsrinf) %>%
+  dplyr::mutate(lr = paste0(L, "_", R)) %>%
+  dplyr::filter(qval < 0.001)
+load("./data/LUAD.RData")
+luad_LR <- LRinter(bsrinf) %>%
+  dplyr::mutate(lr = paste0(L, "_", R)) %>%
+  dplyr::filter(qval < 0.001)
+load("./data/STAD.RData")
+stad_LR <- LRinter(bsrinf) %>%
+  dplyr::mutate(lr = paste0(L, "_", R)) %>%
+  dplyr::filter(qval < 0.001)
+load("./data/CRC.RData")
+crc_LR <- LRinter(bsrinf) %>%
+  dplyr::mutate(lr = paste0(L, "_", R)) %>%
+  dplyr::filter(qval < 0.001)
+load("./data/LC.RData")
+lc_LR <- LRinter(bsrinf) %>%
+  dplyr::mutate(lr = paste0(L, "_", R)) %>%
+  dplyr::filter(qval < 0.001)
+rm(bsrdm, bsrinf, scoresPathway)
+
+#upset plot
+upset_list <- list(ESCA = esca_LR$lr, HD = hd_LR$lr, LC = lc_LR$lr, STAD = stad_LR$lr, LUAD = luad_LR$lr, CRC = crc_LR$lr)
+ups_plot <- upset(fromList(upset_list), order.by = "freq", nsets = 10, nintersects = 10, text.scale = 2) 
+uu_c <- cowplot::plot_grid(NULL, ups_plot$Main_bar, ups_plot$Sizes, ups_plot$Matrix,
+  nrow = 2, align = "hv", rel_heights = c(3, 1),
+  rel_widths = c(2, 5)
+)
+
+# load Zhu et al., 2021/therano LRIs
+load("./data/therano_lrp.RData")
+hcc_therano <- LRinter(bsrinf_therano_hcc) %>%
+  dplyr::mutate(lr = paste0(L, "_", R)) %>%
+  dplyr::filter(qval < 0.001)
+nc_therano <- LRinter(bsrinf_therano_nc) %>%
+  dplyr::mutate(lr = paste0(L, "_", R)) %>%
+  dplyr::filter(qval < 0.001)
+
+# venn diagram
+venn_input <- list(
+  `LC (Chen et al., 2022)` = lc_LR$lr,
+  `LC (Zhu et al., 2021)` = hcc_therano$lr
+)
+elife_th_venn <- ggvenn(venn_input, auto_scale = T, text_size = 4, set_name_size = 5)
+
+# create fig1 and export
+fig1 <- ggdraw() +
+  draw_plot(uu_c, x = 0, y = 0, width = .95, height = 1) +
+  draw_plot(elife_th_venn, x = 0.6, y = 0.45, width = .3, height = 0.5) +
+  draw_plot_label(label = c("A", "B"), size = 18, x = c(0.2, 0.6), y = c(1, 1), family = "Arial")
+ggsave(plot = fig1, file = "./figs/fig1.svg", units = "mm", device = "svg", height = 180, width = 350, scaling = 1, limitsize = FALSE)
+```
+
+# Suppl. Figure 1
+***
+
+```{r, suppl_fig1, fig.width= 15, fig.height=8, warning = T, message = T, error=TRUE, eval = T}
+#create a barplot
+size_bar <- data.frame(hd_elife = length(unique(hd_LR$lr)), hd_therano = length(unique(nc_therano$lr)), lc_elife = length(unique(lc_LR$lr)), lc_therano = length(unique(hcc_therano$lr)), ESCA = length(unique(esca_LR$lr)), LUAD = length(unique(luad_LR$lr)), CRC = length(unique(crc_LR$lr)), STAD = length(unique(stad_LR$lr))) %>%
+  pivot_longer(cols = tidyselect::everything(), names_to = "dataset", values_to = "unique_LRIs") %>% dplyr::mutate(dataset = fct_recode(dataset,
+                       "LC (Zhu et al., 2021)" = "lc_therano",
+                       "LC (Chen et al., 2022)" = "lc_elife", 
+                       "HD (Chen et al., 2022)" = "hd_elife",
+                       "HD (Zhu et al., 2021)" = "hd_therano")) %>% 
+  ggplot(., aes(x = forcats::fct_reorder(dataset, dplyr::desc(unique_LRIs)), y = unique_LRIs)) +
+  geom_col(aes(fill = dataset)) +
+  scale_fill_viridis(option="turbo", discrete = T, guide = "none") +
+  theme_pubr(base_size = 18, base_family = "Helvetica") +
+  ylab("Number of LRIS") +
+  theme(legend.text = element_text(size = 16, family = "Helvetica"), legend.title = element_text(size = 18, family = "Helvetica"), legend.position = "right", legend.key.height = unit(2, "lines"), legend.spacing.y = unit(0.7, "cm"), plot.title = element_text(hjust = 0.5, face = "bold", size = 18), axis.title.x = element_blank(), axis.text.x = element_text(angle = 20, vjust = 0.7, hjust=0.5))
+
+# load bulk RNA-seq LRIs 
+load("./data/gse_liver_res.RData")
+lc_bulk <- LRinter(bsrinf_hcc) %>%
+  dplyr::mutate(lr = paste0(L, "_", R)) %>%
+  dplyr::filter(qval < 0.001 & LR.corr >= 0.5)
+
+# load scRNA-seq LRIs 
+load("./data/hbv_liana_lrdb.RData")
+lc_sc <- liana_test %>%
+  dplyr::mutate(lr = paste0(ligand.complex, "_", receptor.complex)) %>%
+  dplyr::filter(cellphonedb.pvalue < 0.05 & sca.LRscore >= 0.5)
+
+#create a venn diagram
+venn_input <- list(
+  `LC (SC)` = lc_sc$lr,
+  `LC (Bulk)` = lc_bulk$lr
+)
+bulk_sc <- ggvenn(venn_input, auto_scale = T, text_size = 4, set_name_size = 5) 
+
+#make suppl. fig1 and export
+tr <- ggdraw() +
+  draw_plot(size_bar, x = 0, y = 0, width = .95, height = 1) +
+  draw_plot(bulk_sc, x = 0.5, y = 0.4, width = .4, height = 0.6) +
+  draw_plot_label(label = c("A", "B"), size = 18, x = c(0.02, 0.5), y = c(1, 1), family = "Arial")
+ggsave(plot = tr, file = "./figs/suppl_fig1.svg", units = "mm", device = "svg", height = 180, width = 320, scaling = 1, limitsize = FALSE)
+```
+
+# Suppl. File 1
+***
+
+```{r, suppl_file1, fig.width= 15, fig.height=8, warning = T, message = T, error=TRUE, eval = T}
+list_of_datasets <- list("LC LRIs (Chen et al., 2022)" = lc_LR, "HD LRIs (Chen et al., 2022)" = hd_LR, "LC LRIs (Zhu et al., 2021)" = hcc_therano, "HD LRIs (Zhu et al., 2021)" = nc_therano, "LC LRIs (Bulk)" = lc_bulk, "LC LRIs (SC)" = lc_sc, "ESCA LRIs" = esca_LR, "STAD LRIs" = stad_LR, "CRC LRIs" = crc_LR, "LUAD LRIs" = luad_LR)
+write.xlsx(list_of_datasets, file = "./suppl_files/suppl_file1.xlsx")
+```
+
+```{r}
+sessionInfo()
+```
