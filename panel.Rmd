@@ -8,11 +8,10 @@ output:
     code_folding: hide
     number_sections: TRUE
 knit: (function(input, ...) {
+    )
     rmarkdown::render(
       input,
       output_dir = "./html_output"
-    )
-  })
 editor_options: 
   chunk_output_type: console
 ---

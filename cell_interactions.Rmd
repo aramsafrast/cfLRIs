@@ -142,7 +142,7 @@ lc_sc %>%
   column_to_rownames(var = "source") %>%
   `rownames<-`(paste0(rownames(.), " ")) %>%
   as.matrix() %>%
-  chordDiagramFromMatrix(link.lty = lty_df, link.lwd = lwd_df, link.border = border_df, direction.type = "arrows", directional = 1, grid.col = grid.col, link.sort = TRUE)
+  chordDiagramFromMatrix(link.lty = lty_df, link.lwd = lwd_df, link.border = border_df, direction.type = "arrows", directional = 1, grid.col = grid.col, link.sort = TRUE, scale = TRUE)
 title(main = "HD LRIs (Chen et al., 2022)", line = -0.5)
 circos.clear()
 dev.off()
@@ -158,7 +158,7 @@ lc_sc %>%
   column_to_rownames(var = "source") %>%
   `rownames<-`(paste0(rownames(.), " ")) %>%
   as.matrix() %>%
-  chordDiagramFromMatrix(link.lty = lty_df, link.lwd = lwd_df, link.border = border_df, direction.type = "arrows", directional = 1, grid.col = grid.col, link.sort = TRUE, scale = F)
+  chordDiagramFromMatrix(link.lty = lty_df, link.lwd = lwd_df, link.border = border_df, direction.type = "arrows", directional = 1, grid.col = grid.col, link.sort = TRUE, scale = TRUE)
 title(main = "HD LRIs (Zhu et al., 2021)", line = -0.5)
 circos.clear()
 dev.off()
@@ -174,7 +174,7 @@ lc_sc %>%
   column_to_rownames(var = "source") %>%
   `rownames<-`(paste0(rownames(.), " ")) %>%
   as.matrix() %>%
-  chordDiagramFromMatrix(link.lty = lty_df, link.lwd = lwd_df, link.border = border_df, direction.type = "arrows", directional = 1, grid.col = grid.col, link.sort = TRUE, scale = T)
+  chordDiagramFromMatrix(link.lty = lty_df, link.lwd = lwd_df, link.border = border_df, direction.type = "arrows", directional = 1, grid.col = grid.col, link.sort = TRUE, scale = TRUE)
 title(main = "LC LRIs (Chen et al., 2022)", line = -0.5)
 circos.clear()
 dev.off()
@@ -190,7 +190,7 @@ lc_sc %>%
   column_to_rownames(var = "source") %>%
   `rownames<-`(paste0(rownames(.), " ")) %>%
   as.matrix() %>%
-  chordDiagramFromMatrix(link.lty = lty_df, link.lwd = lwd_df, link.border = border_df, direction.type = "arrows", directional = 1, grid.col = grid.col, link.sort = TRUE, scale = T)
+  chordDiagramFromMatrix(link.lty = lty_df, link.lwd = lwd_df, link.border = border_df, direction.type = "arrows", directional = 1, grid.col = grid.col, link.sort = TRUE, scale = TRUE)
 title(main = "LC LRIs (Zhu et al., 2021)", line = -0.5)
 circos.clear()
 dev.off()
@@ -206,7 +206,7 @@ lc_sc %>%
   column_to_rownames(var = "source") %>%
   `rownames<-`(paste0(rownames(.), " ")) %>%
   as.matrix() %>%
-  chordDiagramFromMatrix(link.lty = lty_df, link.lwd = lwd_df, link.border = border_df, direction.type = "arrows", directional = 1, grid.col = grid.col, link.sort = TRUE, scale = T)
+  chordDiagramFromMatrix(link.lty = lty_df, link.lwd = lwd_df, link.border = border_df, direction.type = "arrows", directional = 1, grid.col = grid.col, link.sort = TRUE, scale = TRUE)
 title(main = "Intersected LC LRIs (Chen et al., 2022 & Zhu et al., 2021)", line = -0.5)
 circos.clear()
 dev.off()
