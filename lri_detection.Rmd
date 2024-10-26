@@ -119,6 +119,7 @@ seurat_object <- AddMetaData(seurat_object, hcc_hbv$stage, col.name = "stage")
 seurat_object <- AddMetaData(seurat_object, hcc_hbv_annot$labels, col.name = "celltype")
 seurat_object <- SetIdent(seurat_object, value = "celltype")
 seurat_object <- NormalizeData(seurat_object)
+save(seurat_object, file = "./data/hbv_sc_seurat.RData")
 liana_raw <- liana_wrap(seurat_object, resource = c("LRdb"))
 liana_raw <- liana_raw %>%
   liana_aggregate()
