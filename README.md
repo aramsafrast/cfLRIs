@@ -1,7 +1,7 @@
 # Detection of reproducible liver cancer specific ligand-receptor signaling in blood
 _____________________________________________
 
-This repository is aimed at reproducing the results of the paper *"Detection of reproducible liver cancer specific ligand-receptor signaling in blood"*
+This repository is aimed at reproducing the results of the paper *"Detection of reproducible liver cancer specific ligand-receptor signaling in blood"* (https://doi.org/10.3389/fbinf.2024.1332782)
 
 he code is written in R and markdown. 
 
